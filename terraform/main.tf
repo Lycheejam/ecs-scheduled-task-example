@@ -29,6 +29,8 @@ resource "aws_ecs_task_definition" "this" {
   container_definitions = jsonencode([
     {
       name      = "scheduled-task-example-1"
+      # TODO: fargateの場合、諸々VPCエンドポイントを置かないといけないらしい。また明日。
+      # https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/vpc-endpoints.html
       image     = "${aws_ecr_repository.this.repository_url}:latest"
       cpu       = 256
       memory    = 1024
