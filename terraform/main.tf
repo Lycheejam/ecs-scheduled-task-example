@@ -29,7 +29,7 @@ resource "aws_ecs_task_definition" "this" {
   container_definitions = jsonencode([
     {
       name      = "scheduled-task-example-1"
-      image     = "scheduled-task-example:latest"
+      image     = "${aws_ecr_repository.this.repository_url}:latest"
       cpu       = 256
       memory    = 1024
       essential = true
