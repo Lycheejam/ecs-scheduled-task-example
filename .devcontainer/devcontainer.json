@@ -1,0 +1,13 @@
+{
+    "name": "${localWorkspaceFolderBasename}",
+    "image": "mcr.microsoft.com/devcontainers/base:1.2.4-noble",
+    "features": {
+        "ghcr.io/devcontainers/features/aws-cli:1": {},
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/terraform:1": {}
+    },
+    "mounts": [
+        "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly"
+    ]
+}
