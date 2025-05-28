@@ -9,6 +9,8 @@ resource "aws_ecr_repository" "this" {
   }
 }
 
+# TODO: 気が向いたらプライベートサブネット環境下でVPCエンドポイント使った方法も試す。
+
 resource "aws_ecs_cluster" "this" {
   name = "ecs-scheduled-task-example"
 
