@@ -24,15 +24,13 @@ resource "aws_ecs_task_definition" "this" {
   family                   = "scheduled-task-example"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
   cpu                      = "256"
   memory                   = "1024"
   container_definitions = jsonencode([
     {
       name      = "scheduled-task-example-1"
-      # TODO: fargateの場合、諸々VPCエンドポイントを置かないといけないらしい。また明日。
-      # https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/vpc-endpoints.html
       image     = "${aws_ecr_repository.this.repository_url}:latest"
       cpu       = 256
       memory    = 1024
@@ -50,11 +48,39 @@ resource "aws_ecs_task_definition" "this" {
   ])
 }
 
-# NOTE: https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/task-iam-roles.html#create_task_iam_policy_and_role
-data "aws_iam_policy_document" "ecs_task_execution_role_policy_document" {
+# NOTE: ECS実行ロールとECSが利用するECSロールの全体像
+#       https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/security-iam-roles.html
+# NOTE: ECS実行ロールの定義
+#       https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/task_execution_IAM_role.html
+data "aws_iam_policy_document" "ecs_task_execution" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ecs_task_execution" {
+  name               = "EcsTaskExecutionRole"
+  assume_role_policy = data.aws_iam_policy_document.ecs_task_execution.json
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
+  role       = aws_iam_role.ecs_task_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# NOTE: ECSタスクロールの定義
+#       https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/task-iam-roles.html
+data "aws_iam_policy_document" "ecs_task" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "sts:AssumeRole"
+    ]
     principals {
       type        = "Service"
       identifiers = ["ecs-tasks.amazonaws.com"]
@@ -76,34 +102,14 @@ data "aws_iam_policy_document" "ecs_task_execution_role_policy_document" {
   }
 }
 
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name               = "EcsScheduledTaskExecutionRole"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_execution_role_policy_document.json
+resource "aws_iam_role" "ecs_task" {
+  name = "EcsTaskRole"
+  assume_role_policy = data.aws_iam_policy_document.ecs_task.json
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy_attachment" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-resource "aws_iam_role" "ecs_task_role" {
-  name = "EcsScheduledTaskRole"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# NOTE: https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/task-iam-roles.html#ecs-exec-required-iam-permissions
-data "aws_iam_policy_document" "ecs_task_policy_document" {
+# NOTE: ECSタスクロールにECS Exec のアクセス許可を追加
+#       https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/task-iam-roles.html#ecs-exec-required-iam-permissions
+data "aws_iam_policy_document" "ecs_task_with_ecs_exec" {
   statement {
     effect = "Allow"
     actions = [
@@ -118,14 +124,14 @@ data "aws_iam_policy_document" "ecs_task_policy_document" {
   }
 }
 
-resource "aws_iam_policy" "ecs_task_policy" {
-  name   = "EcsScheduledTaskPolicy"
-  policy = data.aws_iam_policy_document.ecs_task_policy_document.json
+resource "aws_iam_policy" "ecs_task_with_ecs_exec" {
+  name   = "EcsTaskWithEcsExecPolicy"
+  policy = data.aws_iam_policy_document.ecs_task_with_ecs_exec.json
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_role_policy_attachment" {
-  role       = aws_iam_role.ecs_task_role.name
-  policy_arn = aws_iam_policy.ecs_task_policy.arn
+resource "aws_iam_role_policy_attachment" "ecs_task_with_ecs_exec" {
+  role       = aws_iam_role.ecs_task.name
+  policy_arn = aws_iam_policy.ecs_task_with_ecs_exec.arn
 }
 
 resource "aws_cloudwatch_log_group" "this" {
